@@ -1,0 +1,120 @@
+library(bibliometrix)
+library(bib2df)
+library(scraEP)
+library(writexl)
+
+# Ensuring files are readable regardless of source encoding
+
+reencode_file <- function(path, output = basename(path)) {
+  text <- tryCatch(
+    readLines(path, encoding = "UTF-8"),
+    error = function(e1)
+      tryCatch(
+        readLines(path, encoding = "latin1"),
+        error = function(e2)
+          readLines(path, encoding = "")
+      )
+  )
+  writeLines(text, output, useBytes = TRUE)
+   return(output)
+}
+
+filew <- reencode_file("data/wos.txt")
+files <- reencode_file("data/scopus.csv")
+
+# Converting Scopus and WOS files into bibliometrix dataframes
+
+W <- convert2df(filew, dbsource = "wos", format = "plaintext")
+S <- convert2df(files, dbsource = "scopus", format = "csv")
+
+# Checking dimensions of each file
+
+message("Dimensions of WoS data frame:")
+print(dim(W))
+
+message("Dimensions of Scopus data frame:")
+print(dim(S))
+
+# Merging files and avoiding duplicates
+
+df = mergeDbSources(W, S, remove.duplicated = TRUE)
+
+# Checking the column names of the first df version
+
+message("Column names of data frame:")
+print(colnames(df))
+
+# Cleaning text columns
+
+clean_cc <- function(x) {
+  if (!is.character(x)) return(x)
+  x <- scraEP::unaccent(x)
+  x <- gsub("[[:punct:]]", "", x)
+  x <- bibliometrix::trim(x)
+  x <- tolower(x)
+  x
+}
+
+text_vars <- c("TI", "AB", "AU", "DE", "ID")
+
+for (v in text_vars) {
+  clean_name <- paste0(v, "_clean")
+  if (v %in% names(df)) {
+    df[[clean_name]] <- clean_cc(df[[v]])
+  }
+}
+
+# Checking the dimensions to ensure a successful merging process
+
+message("Dimensions after merging:")
+print(dim(df))
+
+# Searching duplicates based on the article titles and abstract
+# Keeping just one of the duplicates
+
+df1 <- duplicatedMatching(df, Field = "TI_clean", exact = TRUE)
+df1 <- duplicatedMatching(df1, Field = "AB_clean", exact = TRUE)
+
+# Checking the dimensions again to ensure a successful extraction of unique values process
+
+message("Dimensions after deduplication:")
+print(dim(df))
+
+# Checking the column names of the final df
+
+message("Column names of final data frame:")
+print(colnames(df))
+
+# Ensuring the duplicates can be visualized
+
+excluded_df <- df[!df$AB_clean %in% df1$AB_clean, ]
+
+excluded_list <- as.list(excluded_df)
+
+if (length(excluded_list$TI) <= 50) {
+  message("Artigos excluídos:")
+  print(excluded_list$TI)
+}
+
+if (length(excluded_list$AB) <= 50) {
+  message("Abstracts dos artigos excluídos:")
+  print(excluded_list$AB)
+}
+
+# Saving df as R data
+
+saveRDS(df1, file = "final_climate.rds")
+
+# Exporting the final df as a bib to the local machine
+
+df2bib(df1, file = "output/final.bib", append = FALSE)
+
+# Exporting an xlsx file for manual checking of the excluded articles a posteriori if needed
+
+write_xlsx(
+  excluded_df,
+  path = "output\\excluded_articles.xlsx",
+  col_names = TRUE,
+  format_headers = TRUE,
+  use_zip64 = TRUE
+)
