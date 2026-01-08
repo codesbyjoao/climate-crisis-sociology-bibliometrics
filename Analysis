@@ -23,11 +23,10 @@ plot(x = results, k = 10, pause = TRUE)
 
 ## Exporting the top 50 as xlsx for manual checking
 
-papers_top <- S$MostCitedPapers$Papers
-df_top <- df[match(papers_top, df$SR), c("SR", "TI", "AB")]
+df_top50 <- df[order(df$TC, decreasing = TRUE),c("SR", "TI", "AB", "DE")][1:50, ] 
 
 write_xlsx(
-  df_top,
+  df_top50,
   path = "Output\\top50.xlsx",
   col_names = TRUE,
   format_headers = TRUE,
