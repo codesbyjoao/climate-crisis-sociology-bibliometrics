@@ -1,0 +1,154 @@
+## Analysis before desambiquation
+
+library(writexl)
+library(bibliometrix)
+
+## Importing bib file generated in Script.r
+
+df <- readRDS("final_climate.rds")
+
+## Ensuring the data is well to be analysed
+
+df$PY <- as.numeric(df$PY)
+df <- df[df$PY >= 2020 & df$PY <= 2024, ]
+
+print("Starting basic analysis")
+
+results <- biblioAnalysis(df, sep = ";")
+
+S <- summary(object = results, k = 50, pause = TRUE)
+
+windows()
+plot(x = results, k = 10, pause = TRUE)
+
+## Exporting the top 50 as xlsx for manual checking
+
+papers_top <- S$MostCitedPapers$Papers
+df_top <- df[match(papers_top, df$SR), c("SR", "TI", "AB")]
+
+write_xlsx(
+  df_top,
+  path = "Output\\top50.xlsx",
+  col_names = TRUE,
+  format_headers = TRUE,
+  use_zip64 = TRUE
+)
+
+print("Starting Network Analysis")
+
+## Creating and plotting a country collaboration network
+
+M <- metaTagExtraction(df, Field = "AU_CO", sep = ";")
+NetMatrix <- biblioNetwork(M, analysis = "collaboration", network = "countries", sep = ";")
+netc=networkPlot(NetMatrix, n = dim(NetMatrix)[1], Title = "Country Collaboration", type = "circle", size=TRUE, remove.multiple=FALSE,labelsize=0.7,cluster="none")
+
+netcc=networkPlot(NetMatrix, n = 30, Title = "30 Most Important Countries Collaboration", type = "circle", size=TRUE, remove.multiple=FALSE,labelsize=0.7,cluster="none")
+
+## Creating a df for conceptual analyses
+
+dfk <- df
+dfk[c("DE", "ID")] <- dfk[c("DE_clean", "ID_clean")]
+
+## Three Fields Plot of keywords, countries and sources
+
+threeFieldsPlot(dfk,
+                fields = c("SO", "AU_CO", "DE"),
+                n = c(10, 10, 10))
+
+## Creating and plotting keyword co-occurrences network
+
+NetMatrix <- biblioNetwork(df, analysis = "co-occurrences", network = "keywords", sep = ";")
+net=networkPlot(NetMatrix, normalize="association", weighted=T, n = 30, Title = "30 Most Important Keywords Co-occurrences", type = "fruchterman", size=T,edgesize = 5,labelsize=0.7)
+
+## Creating and plotting institutional collaboration network, but without disambiguation
+## This analysis is preferably done after disambiguation of institutions
+
+NetMatrix <- biblioNetwork(df, analysis = "collaboration", network = "universities", sep = ";")
+net=networkPlot(NetMatrix, normalize="association", weighted=T, n = 25, Title = "25 Most Important Institutional Collaboration", type = "fruchterman", size=T,edgesize = 5,labelsize=0.7)
+
+print("Starting Conceptual Structure Analysis")
+
+## Creating a df with unique SR for Conceptual Structure Analysis avaiability
+
+df_cs <- dfk
+
+df_cs$SR <- make.unique(df_cs[, "SR"], sep = "_")
+
+## Conceptual Structure Analysis
+
+windows()
+CS1 <- conceptualStructure(
+  df_cs,
+  field = "DE",
+  method = "CA",
+  minDegree = 20,
+  documents = 10,
+  clust = "auto",
+  graph = TRUE
+)
+
+print("Starting CA addictional evaluations")
+
+## Checking the results and contributions of the terms for the CA model
+
+CS1$res
+CS1$contri
+
+## Taking the total inertia of the CA model
+
+sum(CS1$res$eigCorr$eig)
+
+## Taking the number of objects in object "km.res"
+
+CS1$km.res
+
+## Taking the Benzécri eigenvalues
+
+summary(CS1$res$eigCorr)
+
+## Taking the structural expectative of the model
+
+numbobjless1 <- 486 - 1
+struct_exp <- 1/numbobjless1
+struct_exp
+
+## Difference between the Benzécri mean eigenvalue and the structural expectative
+
+structvsbenz <- 0.17497/struct_exp
+structvsbenz
+
+## Checking the sum of contributions of the plotted terms to dimensions 1 and 2
+## Checking the sum of contributions of the plotted terms to dimensions 1 and 2
+
+terms <- c(
+ "extinction risk",
+ "range shifts",
+ "ocean warming",
+ "ocean acidification",
+ "species richness",
+ "climate warming",
+ "global climate change",
+ "higher education",
+ "climate anxiety",
+ "eco-anxiety",
+ "climate change awareness",
+ "climate literacy",
+ "climate change perception")
+
+sum(CS1$coord$contri[terms, "Dim1"])
+sum(CS1$coord$contri[terms, "Dim2"])
+
+print("Restarting Network Analyses, with ID terms")
+
+windows()
+CS2 <- conceptualStructure(
+  df_cs,
+  field = "ID",
+  method = "CA",
+  minDegree = 20,
+  documents = 10,
+  clust = "auto",
+  graph = TRUE
+  )
+
+print("Additional evaluations for CA with ID terms are also possible, but none of them are mandatory for the report.")
