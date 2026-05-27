@@ -1,7 +1,9 @@
-## Analysis before desambiquation
+## Analysis before authors/institutions disambiguation
 
 library(writexl)
 library(bibliometrix)
+library(stringr)
+library(stringi)
 
 ## Importing bib file generated in Script.r
 
@@ -10,42 +12,301 @@ df <- readRDS("final_climate.rds")
 ## Ensuring the data is well to be analysed
 
 df$PY <- as.numeric(df$PY)
-df <- df[df$PY >= 2020 & df$PY <= 2024, ]
+df1 <- df[df$PY >= 2020 & df$PY <= 2024, ]
+
+# Checking the possible remaining NaN values
+
+colSums(is.na(df1))
+
+# Extracting author countries of affiliation
+
+M <- metaTagExtraction(df1, Field = "AU_CO", aff.disamb = TRUE)
+
+# Checking function results
+
+unique(M$AU_CO)
+M[is.na(M$AU_CO), c("AU", "C1", "AU_UN")]
+
+# Cleaning and standardizing countries of affiliation considering database-specific format
+
+M$C1 <- stri_trans_general(M$C1, "Latin-ASCII")
+
+M$C1 <- str_remove_all(
+  M$C1,
+  regex(
+    "EQUALLY CONTRIBUTED\\.?|CO-LAST AUTHOR|INDEPENDENT SCHOLAR|INDEPENDENT RESEARCHER",
+    ignore_case = TRUE
+  )
+)
+
+M$C1 <- str_replace_all(M$C1, "\\s*;\\s*", "; ")
+
+M$C1 <- str_squish(M$C1)
+
+df2 <- M
+df2$C1 <- str_replace_all(df2$C1, "PUERTO RICO", "UNITED STATES")
+df2$C1 <- str_replace_all(df2$C1, "INSTITUTO DE INVESTIGACIONES ECONOMICAS Y SOCIALES DEL SUR", "Instituto de Investigaciones Económicas y Sociales del Sur (IIESS) Universidad Nacional del Sur, CONICET Bahía Blanca, ARGENTINA")
+df2$C1 <- str_replace_all(df2$C1, "MACAO", "CHINA")
+df2$C1 <- str_replace_all(df2$C1, "HONG KONG", "CHINA")
+df2$C1 <- str_replace_all(df2$C1, "BOSNIA", "BOSNIA AND HERZEGOVINA")
+df2$C1 <- str_replace_all(df2$C1, "VIET NAM", "VIETNAM")
+df2$C1 <- str_replace_all(df2$C1, "CONGO", "DEMOCRATIC REPUBLIC OF THE CONGO")
+df2$C1 <- str_replace_all(df2$C1, "MACEDONIA", "NORTH MACEDONIA")
+df2$C1 <- str_replace_all(df2$C1, "BRUNEI", "BRUNEI DARUSSALAM")
+df2$C1 <- str_replace_all(df2$C1, "CZECHIA", "CZECHIA REPUBLIC")
+df2$C1 <- str_replace_all(df2$C1, "SYRIA", "SYRIAN ARAB REPUBLIC")
+df2$C1 <- str_replace_all(df2$C1, "RUSSIA", "RUSSIAN FEDERATION")
+df2$C1 <- str_replace_all(df2$C1, "LAZARD", "LAZARD, New York, UNITED STATES")
+df2$C1 <- str_replace_all(df2$C1, "SOCIAL SCIENCES UNIT, SCHOOL OF GENERAL STUDIES", "SOCIAL SCIENCES UNIT, SCHOOL OF GENERAL STUDIES, UNIVERSITY OF NIGERIA, NIGERIA")
+df2$C1 <- str_replace_all(df2$C1, "FONDS MONETAIRE INTERNATIONAL; FERDI", "IMF, Washington, D.C., USA; Ferdi, FRANCE")
+df2$C1 <- str_replace_all(df2$C1, "FERDI", "Ferdi, FRANCE")
+df2$C1 <- str_replace_all(df2$C1, "GUADELOUPE", "FRANCE")
+df2$C1 <- str_replace_all(df2$C1, "NORTH EAST BIOSOLIDS & RESIDUALS ASSOCIATION", "NORTH EAST BIOSOLIDS & RESIDUALS ASSOCIATION, UNITED STATES")
+df2$C1 <- str_replace_all(df2$C1, "RESEARCH INSTITUTE OF INNOVATIVE TECHNOLOGY FOR THE EARTH", "RESEARCH INSTITUTE OF INNOVATIVE TECHNOLOGY FOR THE EARTH, Kyoto, JAPAN")
+
+# Using list of UN recognized countries, plus Palestine, as a dictionary for new extraction function
+# Preserving only one occurrence of the same country per row
+countries <- c(
+  "AFGHANISTAN",
+  "ALBANIA",
+  "ALGERIA",
+  "ANDORRA",
+  "ANGOLA",
+  "ANTIGUA AND BARBUDA",
+  "ARGENTINA",
+  "ARMENIA",
+  "AUSTRALIA",
+  "AUSTRIA",
+  "AZERBAIJAN",
+  "BAHAMAS",
+  "BAHRAIN",
+  "BANGLADESH",
+  "BARBADOS",
+  "BELARUS",
+  "BELGIUM",
+  "BELIZE",
+  "BENIN",
+  "BHUTAN",
+  "BOLIVIA",
+  "BOSNIA AND HERZEGOVINA",
+  "BOTSWANA",
+  "BRAZIL",
+  "BRUNEI DARUSSALAM",
+  "BULGARIA",
+  "BURKINA FASO",
+  "BURUNDI",
+  "CAMBODIA",
+  "CAMEROON",
+  "CANADA",
+  "CABO VERDE",
+  "CENTRAL AFRICAN REPUBLIC",
+  "CHAD",
+  "CHILE",
+  "CHINA",
+  "COLOMBIA",
+  "COMOROS",
+  "CONGO",
+  "COSTA RICA",
+  "COTE D'IVOIRE",
+  "CROATIA",
+  "CUBA",
+  "CYPRUS",
+  "CZECH REPUBLIC",
+  "NORTH KOREA",
+  "DEMOCRATIC REPUBLIC OF THE CONGO",
+  "DENMARK",
+  "DJIBOUTI",
+  "DOMINICA",
+  "DOMINICAN REPUBLIC",
+  "ECUADOR",
+  "EGYPT",
+  "EL SALVADOR",
+  "EQUATORIAL GUINEA",
+  "ERITREA",
+  "ESTONIA",
+  "ETHIOPIA",
+  "FIJI",
+  "FINLAND",
+  "FRANCE",
+  "GABON",
+  "GAMBIA",
+  "GEORGIA",
+  "GERMANY",
+  "GHANA",
+  "GREECE",
+  "GRENADA",
+  "GUATEMALA",
+  "GUINEA",
+  "GUINEA-BISSAU",
+  "GUYANA",
+  "HAITI",
+  "HONDURAS",
+  "HUNGARY",
+  "ICELAND",
+  "INDIA",
+  "INDONESIA",
+  "IRAN",
+  "IRAQ",
+  "IRELAND",
+  "ISRAEL",
+  "ITALY",
+  "JAMAICA",
+  "JAPAN",
+  "JORDAN",
+  "KAZAKHSTAN",
+  "KENYA",
+  "KIRIBATI",
+  "KUWAIT",
+  "KYRGYZSTAN",
+  "LAOS",
+  "LATVIA",
+  "LEBANON",
+  "LESOTHO",
+  "LIBERIA",
+  "LIBYA",
+  "LIECHTENSTEIN",
+  "LITHUANIA",
+  "LUXEMBOURG",
+  "MADAGASCAR",
+  "MALAWI",
+  "MALAYSIA",
+  "MALDIVES",
+  "MALI",
+  "MALTA",
+  "MARSHALL ISLANDS",
+  "MAURITANIA",
+  "MAURITIUS",
+  "MEXICO",
+  "MICRONESIA",
+  "MONACO",
+  "MONGOLIA",
+  "MONTENEGRO",
+  "MOROCCO",
+  "MOZAMBIQUE",
+  "MYANMAR",
+  "NAMIBIA",
+  "NAURU",
+  "NEPAL",
+  "NETHERLANDS",
+  "NEW ZEALAND",
+  "NICARAGUA",
+  "NIGER",
+  "NIGERIA",
+  "NORWAY",
+  "OMAN",
+  "PAKISTAN",
+  "PALAU",
+  "PALESTINE",
+  "PANAMA",
+  "PAPUA NEW GUINEA",
+  "PARAGUAY",
+  "PERU",
+  "PHILIPPINES",
+  "POLAND",
+  "PORTUGAL",
+  "QATAR",
+  "MOLDOVA",
+  "ROMANIA",
+  "RUSSIAN FEDERATION",
+  "RWANDA",
+  "SAINT KITTS AND NEVIS",
+  "SAINT LUCIA",
+  "SAINT VINCENT AND THE GRENADINES",
+  "SAMOA",
+  "SAN MARINO",
+  "SAO TOME AND PRINCIPE",
+  "SAUDI ARABIA",
+  "SENEGAL",
+  "SERBIA",
+  "SEYCHELLES",
+  "SIERRA LEONE",
+  "SINGAPORE",
+  "SLOVAKIA",
+  "SLOVENIA",
+  "SOLOMON ISLANDS",
+  "SOMALIA",
+  "SOUTH AFRICA",
+  "SOUTH SUDAN",
+  "SOUTH KOREA",
+  "SPAIN",
+  "SRI LANKA",
+  "SUDAN",
+  "SURINAME",
+  "SWAZILAND",
+  "SWEDEN",
+  "SWITZERLAND",
+  "SYRIAN ARAB REPUBLIC",
+  "TAJIKISTAN",
+  "THAILAND",
+  "NORTH MACEDONIA",
+  "TIMOR-LESTE",
+  "TOGO",
+  "TONGA",
+  "TRINIDAD AND TOBAGO",
+  "TUNISIA",
+  "TURKEY",
+  "TURKMENISTAN",
+  "TUVALU",
+  "UGANDA",
+  "UKRAINE",
+  "UNITED ARAB EMIRATES",
+  "UNITED KINGDOM",
+  "TANZANIA",
+  "UNITED STATES",
+  "URUGUAY",
+  "UZBEKISTAN",
+  "VANUATU",
+  "VENEZUELA",
+  "VIETNAM",
+  "YEMEN",
+  "ZAMBIA",
+  "ZIMBABWE"
+)
+extract_countries <- function(x) {
+
+  found <- countries[
+    str_detect(str_to_upper(x), fixed(countries))
+  ]
+
+  found <- unique(found)
+
+  paste(found, collapse = ";")
+}
+
+df2$AU_CO <- sapply(df2$C1, extract_countries)
+
+# Checking possible remaining NaN values in source columns and new columns, also as values of the new column
+
+df2[grepl("(^|;)NA($|;)", df2$AU_CO), c("AU", "C1", "AU_UN")]
+unique(df2$AU_CO)
+df2[is.na(df2$AU_CO), c("AU", "C1", "AU_UN")]
 
 print("Starting basic analysis")
 
-results <- biblioAnalysis(df, sep = ";")
+results <- biblioAnalysis(df2, sep = ";")
 
 S <- summary(object = results, k = 50, pause = TRUE)
 
-windows()
 plot(x = results, k = 10, pause = TRUE)
 
 ## Exporting the top 50 as xlsx for manual checking
 
-df_top50 <- df[order(df$TC, decreasing = TRUE),c("SR", "TI", "AB", "DE")][1:50, ] 
+df_top50 <- df2[order(df2$TC, decreasing = TRUE), c("SR", "TI", "AB", "DE")][1:50, ] 
 
-write_xlsx(
-  df_top50,
-  path = "Output\\top50.xlsx",
-  col_names = TRUE,
-  format_headers = TRUE,
-  use_zip64 = TRUE
-)
+write_xlsx(df_top50, file.path("Output", "top50.xlsx"), col_names = TRUE, format_headers = TRUE, use_zip64 = TRUE)
 
 print("Starting Network Analysis")
 
 ## Creating and plotting a country collaboration network
 
-M <- metaTagExtraction(df, Field = "AU_CO", sep = ";")
-NetMatrix <- biblioNetwork(M, analysis = "collaboration", network = "countries", sep = ";")
-netc=networkPlot(NetMatrix, n = dim(NetMatrix)[1], Title = "Country Collaboration", type = "circle", size=TRUE, remove.multiple=FALSE,labelsize=0.7,cluster="none")
+NetMatrix_co <- biblioNetwork(df2, analysis = "collaboration", network = "countries", sep = ";")
+net_co=networkPlot(NetMatrix_co, n = dim(NetMatrix_co)[1], Title = "Country Collaboration", type = "circle", size=TRUE, remove.multiple=FALSE,labelsize=0.7,cluster="none")
 
-netcc=networkPlot(NetMatrix, n = 30, Title = "30 Most Important Countries Collaboration", type = "circle", size=TRUE, remove.multiple=FALSE,labelsize=0.7,cluster="none")
+net_co3=networkPlot(NetMatrix_co, n = 30, Title = "30 Most Important Countries Collaboration", type = "circle", size=TRUE, remove.multiple=FALSE,labelsize=0.7,cluster="none")
 
 ## Creating a df for conceptual analyses
 
-dfk <- df
+dfk <- df2
 dfk[c("DE", "ID")] <- dfk[c("DE_clean", "ID_clean")]
 
 ## Three Fields Plot of keywords, countries and sources
@@ -56,18 +317,18 @@ threeFieldsPlot(dfk,
 
 ## Creating and plotting keyword co-occurrences network
 
-NetMatrix <- biblioNetwork(df, analysis = "co-occurrences", network = "keywords", sep = ";")
-net=networkPlot(NetMatrix, normalize="association", weighted=T, n = 30, Title = "30 Most Important Keywords Co-occurrences", type = "fruchterman", size=T,edgesize = 5,labelsize=0.7)
+NetMatrix_key <- biblioNetwork(dfk, analysis = "co-occurrences", network = "keywords", sep = ";")
+net_key=networkPlot(NetMatrix_key, normalize="association", weighted=T, n = 30, Title = "30 Most Important Keywords Co-occurrences", type = "fruchterman", size=T,edgesize = 5,labelsize=0.7)
 
 ## Creating and plotting institutional collaboration network, but without disambiguation
 ## This analysis is preferably done after disambiguation of institutions
 
-NetMatrix <- biblioNetwork(df, analysis = "collaboration", network = "universities", sep = ";")
-net=networkPlot(NetMatrix, normalize="association", weighted=T, n = 25, Title = "25 Most Important Institutional Collaboration", type = "fruchterman", size=T,edgesize = 5,labelsize=0.7)
+NetMatrix_uni <- biblioNetwork(df2, analysis = "collaboration", network = "universities", sep = ";")
+net_uni=networkPlot(NetMatrix_uni, normalize="association", weighted=T, n = 25, Title = "25 Most Important Institutional Collaboration", type = "fruchterman", size=T,edgesize = 5,labelsize=0.7)
 
 print("Starting Conceptual Structure Analysis")
 
-## Creating a df with unique SR for Conceptual Structure Analysis avaiability
+## Creating a df with unique SR for Conceptual Structure Analysis availability
 
 df_cs <- dfk
 
@@ -75,7 +336,6 @@ df_cs$SR <- make.unique(df_cs[, "SR"], sep = "_")
 
 ## Conceptual Structure Analysis
 
-windows()
 CS1 <- conceptualStructure(
   df_cs,
   field = "DE",
@@ -86,7 +346,7 @@ CS1 <- conceptualStructure(
   graph = TRUE
 )
 
-print("Starting CA addictional evaluations")
+print("Starting CA additional evaluations")
 
 ## Checking the results and contributions of the terms for the CA model
 
@@ -101,22 +361,6 @@ sum(CS1$res$eigCorr$eig)
 
 CS1$km.res
 
-## Taking the Benzécri eigenvalues
-
-summary(CS1$res$eigCorr)
-
-## Taking the structural expectative of the model
-
-numbobjless1 <- 486 - 1
-struct_exp <- 1/numbobjless1
-struct_exp
-
-## Difference between the Benzécri mean eigenvalue and the structural expectative
-
-structvsbenz <- 0.17497/struct_exp
-structvsbenz
-
-## Checking the sum of contributions of the plotted terms to dimensions 1 and 2
 ## Checking the sum of contributions of the plotted terms to dimensions 1 and 2
 
 terms <- c(
@@ -139,7 +383,6 @@ sum(CS1$coord$contri[terms, "Dim2"])
 
 print("Restarting Network Analyses, with ID terms")
 
-windows()
 CS2 <- conceptualStructure(
   df_cs,
   field = "ID",
